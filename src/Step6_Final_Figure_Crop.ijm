@@ -228,12 +228,12 @@ selectWindow(mergeSourceTitle); close();
 Dialog.create("Step 6 — choose scale-bar size");
 Dialog.addMessage(
     "The image calibration is " + d2s(pixelWidth, 5) + " " + scaleUnit + " per pixel.\n\n" +
-    "A 50 " + scaleUnit + " bar is a good default for a cellular crop.\n" +
+    "A thick WHITE 50 " + scaleUnit + " bar is the default for a cellular crop.\n" +
     "Use 25 for a tight crop or 100 for a broad field. You will drag the exact\n" +
     "fixed-length bar to its final position on the merge panel next."
 );
 Dialog.addNumber("Scale-bar length", 50, 0, 8, scaleUnit);
-Dialog.addNumber("Scale-bar thickness", 10, 0, 8, "pixels");
+Dialog.addNumber("White scale-bar thickness", 20, 0, 8, "pixels");
 Dialog.show();
 barLength = Dialog.getNumber();
 barHeight = Dialog.getNumber();
@@ -272,7 +272,9 @@ while (barAccepted == 0) {
         Dialog.addMessage("Keep the scale bar as a rectangular selection and try again.");
     } else {
         getSelectionBounds(barX, barY, placedBarW, placedBarH);
-        if (absOf(placedBarW - barPixels) > 1 || absOf(placedBarH - barHeight) > 1) {
+        barWidthDifference = placedBarW - barPixels;
+        barHeightDifference = placedBarH - barHeight;
+        if (barWidthDifference > 1 || barWidthDifference < -1 || barHeightDifference > 1 || barHeightDifference < -1) {
             Dialog.create("Scale-bar length changed");
             Dialog.addMessage(
                 "The bar must stay exactly " + barLength + " " + scaleUnit + ".\n\n" +
