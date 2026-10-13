@@ -20,84 +20,36 @@
 requires("1.53");
 
 // ----------------------------------------------------------------------------
-// 0. SELECT THE PROJECT FOLDER, THEN DISCOVER FIJI ANALYSIS + STEP 4 PV IMAGES
+// 0. SELECT ONE FIJI ANALYSIS FOLDER, THEN DISCOVER ITS STEP 4 PV IMAGES
 // ----------------------------------------------------------------------------
 Dialog.create("Step 5 — PV visual tuning");
 Dialog.addMessage(
     "Step 5 will find the raw PV images already made by Step 4.\n\n" +
-    "Select the project folder containing the matching *_FijiAnalysis folder.\n" +
-    "Step 5 will find the Fiji analysis folder, then the PV ROI images.\n\n" +
+    "Select the exact *_FijiAnalysis folder for the sample you want to work on.\n" +
+    "Step 5 will inspect its existing pipeline outputs and find the PV ROI images.\n\n" +
     "The source image, ROIs, and prior outputs will not be changed."
 );
 Dialog.show();
 
-projectFolder = getDirectory(
-    "Step 5 — Select the project folder containing *_FijiAnalysis"
+analysisFolder = getDirectory(
+    "Step 5 — Select the exact *_FijiAnalysis folder to tune"
 );
 
-if (projectFolder == "")
+if (analysisFolder == "")
     exit("No folder was selected. Nothing was changed.");
 
 // getDirectory() returns a path ending in the folder separator.
-selectedFolderName = substring(projectFolder, 0, lengthOf(projectFolder) - 1);
-lastSeparator = lastIndexOf(selectedFolderName, File.separator);
+analysisFolderName = substring(analysisFolder, 0, lengthOf(analysisFolder) - 1);
+lastSeparator = lastIndexOf(analysisFolderName, File.separator);
 if (lastSeparator >= 0)
-    selectedFolderName = substring(selectedFolderName, lastSeparator + 1);
+    analysisFolderName = substring(analysisFolderName, lastSeparator + 1);
 
-if (endsWith(selectedFolderName, "_FijiAnalysis")) {
-    // Allow direct selection of the analysis folder as a convenience.
-    analysisFolder = projectFolder;
-} else {
-    projectItems = getFileList(projectFolder);
-    analysisLabels = newArray(lengthOf(projectItems));
-    analysisPaths = newArray(lengthOf(projectItems));
-    analysisCount = 0;
-
-    for (a = 0; a < lengthOf(projectItems); a++) {
-        projectItem = projectItems[a];
-        if (endsWith(projectItem, "/")) {
-            projectItemName = substring(projectItem, 0, lengthOf(projectItem) - 1);
-            if (endsWith(projectItemName, "_FijiAnalysis")) {
-                analysisLabels[analysisCount] = projectItemName;
-                analysisPaths[analysisCount] = projectFolder + projectItem;
-                analysisCount++;
-            }
-        }
-    }
-
-    if (analysisCount == 0)
-        exit(
-            "NO FIJI ANALYSIS FOLDER WAS FOUND.\n\n" +
-            "Step 5 searched directly inside:\n" + projectFolder + "\n\n" +
-            "Expected a folder ending in _FijiAnalysis."
-        );
-
-    analysisChoices = newArray(analysisCount);
-    analysisChoicePaths = newArray(analysisCount);
-    for (a = 0; a < analysisCount; a++) {
-        analysisChoices[a] = analysisLabels[a];
-        analysisChoicePaths[a] = analysisPaths[a];
-    }
-
-    Dialog.create("Step 5 — Fiji analysis folders found");
-    Dialog.addMessage(
-        "Found " + analysisCount + " matching Fiji analysis folder(s).\n\n" +
-        "Click the project/image you want to tune."
+if (!endsWith(analysisFolderName, "_FijiAnalysis"))
+    exit(
+        "This does not look like a Fiji analysis folder.\n\n" +
+        "Select the folder whose name ends in:\n" +
+        "_FijiAnalysis"
     );
-    Dialog.addChoice("Fiji analysis folder:", analysisChoices, analysisChoices[0]);
-    Dialog.show();
-    selectedAnalysisLabel = Dialog.getChoice();
-    selectedAnalysisIndex = -1;
-    for (a = 0; a < analysisCount; a++) {
-        if (analysisChoices[a] == selectedAnalysisLabel)
-            selectedAnalysisIndex = a;
-    }
-
-    if (selectedAnalysisIndex < 0)
-        exit("The selected Fiji analysis folder could not be resolved. Nothing was changed.");
-
-    analysisFolder = analysisChoicePaths[selectedAnalysisIndex];
-}
 
 roiOutputsFolder =
     analysisFolder +
