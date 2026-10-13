@@ -259,6 +259,9 @@ settingsPath = outputDirectory + baseName + runLabel + "_settings.txt";
 selectWindow(workTitle);
 run("Grays");
 saveAs("Tiff", processedPath);
+// Fiji may rename the open image to the saved filename. Capture that title
+// before building the separate green preview and showing the completion state.
+workTitle = getTitle();
 
 setMinAndMax(displayMin, displayMax);
 run("Green");
