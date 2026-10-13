@@ -9,12 +9,14 @@
 // or Step 3/4 outputs. Results are written to a new PV_visual_tuning folder
 // next to the chosen source image.
 //
-// Default operations (both adjustable)
-//   1. One Despeckle pass: a 3 x 3 median filter.
-//   2. Light Gaussian smoothing: sigma 0.35 pixels.
+// Default operations (all adjustable)
+//   1. Optional bright-outlier suppression for isolated hot pixels.
+//   2. Optional median filtering for tunable despeckling.
+//   3. Optional light Gaussian smoothing.
 //
-// These settings are deliberately conservative. Do not repeat Despeckle or
-// use a large Gaussian sigma when fine PV-positive processes matter.
+// These settings are deliberately conservative. Keep the hot-pixel radius and
+// median radius small, and avoid large Gaussian sigma when fine PV-positive
+// processes matter.
 // ============================================================================
 
 requires("1.53");
@@ -142,23 +144,40 @@ while (reviewComplete == 0) {
     Dialog.create("Step 5 — Choose a PV tuning trial");
     Dialog.addMessage(
         "The source TIFF stays unchanged. This trial is displayed before anything is saved.\n\n" +
-        "Processing order: Despeckle first, then Gaussian smoothing.\n" +
-        "Start with one Despeckle pass and sigma 0.35 px or lower to protect thin PV processes.\n\n" +
+        "Processing order: bright hot-pixel suppression, median despeckling, then smoothing.\n" +
+        "Start conservatively and compare each trial against the raw PV source.\n\n" +
         "After previewing, you can retune, accept and save, or cancel."
     );
-    Dialog.addCheckbox("Apply one 3 x 3 median Despeckle pass", true);
+    Dialog.addCheckbox("Suppress isolated bright hot pixels", false);
+    Dialog.addNumber("Hot-pixel radius", 1, 0, 8, "pixels");
+    Dialog.addNumber("Hot-pixel threshold", 200, 0, 8, "intensity units");
+    Dialog.addCheckbox("Apply median despeckling", true);
+    Dialog.addNumber("Median filter radius", 1, 0, 8, "pixels");
     Dialog.addNumber("Gaussian smoothing sigma", 0.35, 2, 8, "pixels (0 = disabled)");
     Dialog.addNumber("Green preview display minimum", defaultDisplayMin, 0, 8, "raw intensity");
     Dialog.addNumber("Green preview display maximum", defaultDisplayMax, 0, 8, "raw intensity");
     Dialog.show();
 
-    applyDespeckle = Dialog.getCheckbox();
+    suppressHotPixels = Dialog.getCheckbox();
+    hotPixelRadius = Dialog.getNumber();
+    hotPixelThreshold = Dialog.getNumber();
+    applyMedian = Dialog.getCheckbox();
+    medianRadius = Dialog.getNumber();
     gaussianSigma = Dialog.getNumber();
     displayMin = Dialog.getNumber();
     displayMax = Dialog.getNumber();
 
     if (gaussianSigma < 0)
         exit("Gaussian sigma cannot be negative. Nothing was saved.");
+
+    if (suppressHotPixels && (hotPixelRadius < 1 || hotPixelThreshold <= 0))
+        exit("Hot-pixel radius and threshold must be greater than zero. Nothing was saved.");
+
+    if (applyMedian && medianRadius < 1)
+        exit("Median filter radius must be at least 1 pixel. Nothing was saved.");
+
+    if (hotPixelThreshold <= 0)
+        exit("Hot-pixel threshold must be greater than zero. Nothing was saved.");
 
     if (displayMax <= displayMin)
         exit("Display maximum must be greater than display minimum. Nothing was saved.");
@@ -170,8 +189,16 @@ while (reviewComplete == 0) {
     run("Duplicate...", "title=PV_Tuned_Trial");
     workTitle = getTitle();
 
-    if (applyDespeckle)
-        run("Despeckle");
+    if (suppressHotPixels)
+        run(
+            "Remove Outliers...",
+            "radius=" + hotPixelRadius +
+            " threshold=" + hotPixelThreshold +
+            " which=Bright"
+        );
+
+    if (applyMedian)
+        run("Median...", "radius=" + medianRadius);
 
     if (gaussianSigma > 0)
         run("Gaussian Blur...", "sigma=" + gaussianSigma);
@@ -188,8 +215,9 @@ while (reviewComplete == 0) {
     Dialog.create("Step 5 — Review raw versus tuned PV");
     Dialog.addMessage(
         "The raw PV source and tuned trial are open side by side.\n\n" +
-        "Look specifically for remaining isolated specks, retained fine PV processes,\n" +
-        "and whether cell borders still look natural."
+        "Look specifically for remaining isolated specks/hot pixels, retained fine PV processes,\n" +
+        "and whether cell borders still look natural.\n\n" +
+        "If real small structures disappear, lower the median radius or disable hot-pixel suppression."
     );
     Dialog.addChoice("Next action:", reviewChoices, "Retune settings");
     Dialog.show();
@@ -243,7 +271,11 @@ settings =
     "INPUT (unchanged): " + inputPath + "\n" +
     "OUTPUT GRAYSCALE (visualization-only): " + processedPath + "\n" +
     "OUTPUT GREEN PREVIEW (display-baked): " + previewTiffPath + "\n\n" +
-    "One-pass 3 x 3 median Despeckle: " + applyDespeckle + "\n" +
+    "Bright hot-pixel suppression: " + suppressHotPixels + "\n" +
+    "Hot-pixel radius (px): " + d2s(hotPixelRadius, 0) + "\n" +
+    "Hot-pixel threshold: " + d2s(hotPixelThreshold, 0) + "\n" +
+    "Median despeckling: " + applyMedian + "\n" +
+    "Median filter radius (px): " + d2s(medianRadius, 0) + "\n" +
     "Gaussian smoothing sigma (px): " + d2s(gaussianSigma, 3) + "\n" +
     "Green preview display minimum: " + d2s(displayMin, 3) + "\n" +
     "Green preview display maximum: " + d2s(displayMax, 3) + "\n\n" +
