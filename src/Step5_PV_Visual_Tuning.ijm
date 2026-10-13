@@ -20,47 +20,85 @@
 requires("1.53");
 
 // ----------------------------------------------------------------------------
-// 0. SELECT THE STEP 3 COMPOSITE, THEN DISCOVER STEP 4 PV RAW IMAGES
+// 0. SELECT THE PROJECT FOLDER, THEN DISCOVER FIJI ANALYSIS + STEP 4 PV IMAGES
 // ----------------------------------------------------------------------------
 Dialog.create("Step 5 — PV visual tuning");
 Dialog.addMessage(
     "Step 5 will find the raw PV images already made by Step 4.\n\n" +
-    "Select the same *_MAX_merged_composite.tif used to run Step 4.\n" +
-    "Then choose one discovered ROI PV image to tune.\n\n" +
+    "Select the project folder containing the matching *_FijiAnalysis folder.\n" +
+    "Step 5 will find the Fiji analysis folder, then the PV ROI images.\n\n" +
     "The source image, ROIs, and prior outputs will not be changed."
 );
 Dialog.show();
 
-compositePath = File.openDialog(
-    "Step 5 — Select *_MAX_merged_composite.tif used for Step 4"
+projectFolder = getDirectory(
+    "Step 5 — Select the project folder containing *_FijiAnalysis"
 );
 
-if (compositePath == "")
-    exit("No file was selected. Nothing was changed.");
+if (projectFolder == "")
+    exit("No folder was selected. Nothing was changed.");
 
-compositeName = File.getName(compositePath);
-compositeFolder = File.getParent(compositePath) + File.separator;
-compositeLower = toLowerCase(compositeName);
-dotPosition = lastIndexOf(compositeName, ".");
-if (dotPosition > 0)
-    compositeBase = substring(compositeName, 0, dotPosition);
-else
-    compositeBase = compositeName;
+// getDirectory() returns a path ending in the folder separator.
+selectedFolderName = substring(projectFolder, 0, lengthOf(projectFolder) - 1);
+lastSeparator = lastIndexOf(selectedFolderName, File.separator);
+if (lastSeparator >= 0)
+    selectedFolderName = substring(selectedFolderName, lastSeparator + 1);
 
-if (!endsWith(compositeLower, ".tif") && !endsWith(compositeLower, ".tiff"))
-    exit("Step 5 expects the editable TIFF created by Step 3.");
+if (endsWith(selectedFolderName, "_FijiAnalysis")) {
+    // Allow direct selection of the analysis folder as a convenience.
+    analysisFolder = projectFolder;
+} else {
+    projectItems = getFileList(projectFolder);
+    analysisLabels = newArray(lengthOf(projectItems));
+    analysisPaths = newArray(lengthOf(projectItems));
+    analysisCount = 0;
 
-if (!endsWith(compositeBase, "_MAX_merged_composite"))
-    exit(
-        "This does not look like the Step 3 editable composite.\n\n" +
-        "Expected a filename ending in:\n" +
-        "_MAX_merged_composite.tif"
+    for (a = 0; a < lengthOf(projectItems); a++) {
+        projectItem = projectItems[a];
+        if (endsWith(projectItem, "/")) {
+            projectItemName = substring(projectItem, 0, lengthOf(projectItem) - 1);
+            if (endsWith(projectItemName, "_FijiAnalysis")) {
+                analysisLabels[analysisCount] = projectItemName;
+                analysisPaths[analysisCount] = projectFolder + projectItem;
+                analysisCount++;
+            }
+        }
+    }
+
+    if (analysisCount == 0)
+        exit(
+            "NO FIJI ANALYSIS FOLDER WAS FOUND.\n\n" +
+            "Step 5 searched directly inside:\n" + projectFolder + "\n\n" +
+            "Expected a folder ending in _FijiAnalysis."
+        );
+
+    analysisChoices = newArray(analysisCount);
+    analysisChoicePaths = newArray(analysisCount);
+    for (a = 0; a < analysisCount; a++) {
+        analysisChoices[a] = analysisLabels[a];
+        analysisChoicePaths[a] = analysisPaths[a];
+    }
+
+    Dialog.create("Step 5 — Fiji analysis folders found");
+    Dialog.addMessage(
+        "Found " + analysisCount + " matching Fiji analysis folder(s).\n\n" +
+        "Click the project/image you want to tune."
     );
+    Dialog.addChoice("Fiji analysis folder:", analysisChoices, analysisChoices[0]);
+    Dialog.show();
+    selectedAnalysisLabel = Dialog.getChoice();
+    selectedAnalysisIndex = -1;
+    for (a = 0; a < analysisCount; a++) {
+        if (analysisChoices[a] == selectedAnalysisLabel)
+            selectedAnalysisIndex = a;
+    }
 
-// Input location:
-// <Sample>_FijiAnalysis/02_max_projection_and_figures/02_complete_merge/file.tif
-step3Folder = File.getParent(compositeFolder) + File.separator;
-analysisFolder = File.getParent(step3Folder) + File.separator;
+    if (selectedAnalysisIndex < 0)
+        exit("The selected Fiji analysis folder could not be resolved. Nothing was changed.");
+
+    analysisFolder = analysisChoicePaths[selectedAnalysisIndex];
+}
+
 roiOutputsFolder =
     analysisFolder +
     "03_ROI_analysis" + File.separator +

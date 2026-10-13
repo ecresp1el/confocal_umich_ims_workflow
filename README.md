@@ -40,6 +40,6 @@ Output: a persistent ROI ZIP, ROI-manifest CSV, full-field ROI overview, and cro
 
 Macro: `src/Step5_PV_Visual_Tuning.ijm`
 
-Input: the same editable `*_MAX_merged_composite.tif` used for Step 4. The macro detects the existing Step 4 `*_PV_raw.tif` ROI images, reports how many it found, and asks the user to choose one.
+Input: the project folder containing the matching `*_FijiAnalysis` folder. The macro detects the Fiji analysis folder(s) inside it, prompts the user to choose the intended project, then detects the existing Step 4 `*_PV_raw.tif` ROI images and asks the user to choose one.
 
 Output: a separately saved, visualization-only PV grayscale refinement and green display preview in a `PV_visual_tuning/` subfolder next to the chosen input. The source TIFF, ROI set, prepared Z-stack, and prior Step 3/4 outputs are not changed. The macro offers one conservative median Despeckle pass, light adjustable Gaussian smoothing, and manual display limits; use raw PV images for measurements.
