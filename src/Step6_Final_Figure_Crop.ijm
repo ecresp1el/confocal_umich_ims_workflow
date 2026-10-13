@@ -145,11 +145,13 @@ defaultY1 = round(sourceH / 2);
 defaultX2 = defaultX1 + roiLengthPixels;
 defaultY2 = defaultY1;
 selectWindow(mergeSourceTitle);
-makeRotatedRectangle(defaultX1, defaultY1, defaultX2, defaultY2, roiWidthPixels);
 setTool("rotrect");
+makeRotatedRectangle(defaultX1, defaultY1, defaultX2, defaultY2, roiWidthPixels);
 waitForUser(
     "Step 6 — position and rotate the final crop",
-    "Drag the rotated rectangle to place it. Drag its handles to resize or rotate it.\n\n" +
+    "Drag inside the rectangle to move it. Fiji does not use a curved-arrow handle here:\n" +
+    "drag either small square centered on a SHORT end to rotate/extend it; drag a\n" +
+    "small square centered on a LONG side to change its thickness.\n\n" +
     "This one ROI will be applied identically to dTomato, PV, and Merge.\n" +
     "Click OK only when the crop looks right."
 );
