@@ -135,40 +135,82 @@ if (bitDepth == 24) {
 
 getMinAndMax(defaultDisplayMin, defaultDisplayMax);
 
-Dialog.create("Step 5 — PV visual tuning");
-Dialog.addMessage(
-    "A duplicate will be processed; the selected source TIFF remains untouched.\n\n" +
-    "Start gently. A single median Despeckle pass suppresses isolated pixels.\n" +
-    "Keep Gaussian sigma at or below about 0.5 px if thin PV processes matter.\n\n" +
-    "The display limits affect only the saved green preview, not the grayscale tuned TIFF."
-);
-Dialog.addCheckbox("Apply one 3 x 3 median Despeckle pass", true);
-Dialog.addNumber("Gaussian smoothing sigma (pixels; 0 disables it)", 0.35, 2);
-Dialog.addNumber("Green preview display minimum", defaultDisplayMin, 3);
-Dialog.addNumber("Green preview display maximum", defaultDisplayMax, 3);
-Dialog.show();
+// Nothing is written until the user reviews a live preview and explicitly
+// chooses "Accept and save this preview".
+reviewComplete = 0;
+while (reviewComplete == 0) {
+    Dialog.create("Step 5 — Choose a PV tuning trial");
+    Dialog.addMessage(
+        "The source TIFF stays unchanged. This trial is displayed before anything is saved.\n\n" +
+        "Processing order: Despeckle first, then Gaussian smoothing.\n" +
+        "Start with one Despeckle pass and sigma 0.35 px or lower to protect thin PV processes.\n\n" +
+        "After previewing, you can retune, accept and save, or cancel."
+    );
+    Dialog.addCheckbox("Apply one 3 x 3 median Despeckle pass", true);
+    Dialog.addNumber("Gaussian smoothing sigma", 0.35, 2, 8, "pixels (0 = disabled)");
+    Dialog.addNumber("Green preview display minimum", defaultDisplayMin, 0, 8, "raw intensity");
+    Dialog.addNumber("Green preview display maximum", defaultDisplayMax, 0, 8, "raw intensity");
+    Dialog.show();
 
-applyDespeckle = Dialog.getCheckbox();
-gaussianSigma = Dialog.getNumber();
-displayMin = Dialog.getNumber();
-displayMax = Dialog.getNumber();
+    applyDespeckle = Dialog.getCheckbox();
+    gaussianSigma = Dialog.getNumber();
+    displayMin = Dialog.getNumber();
+    displayMax = Dialog.getNumber();
 
-if (gaussianSigma < 0)
-    exit("Gaussian sigma cannot be negative. Nothing was saved.");
+    if (gaussianSigma < 0)
+        exit("Gaussian sigma cannot be negative. Nothing was saved.");
 
-if (displayMax <= displayMin)
-    exit("Display maximum must be greater than display minimum. Nothing was saved.");
+    if (displayMax <= displayMin)
+        exit("Display maximum must be greater than display minimum. Nothing was saved.");
 
-// Work only on a duplicate. The opened source stays available for comparison.
-selectWindow(sourceTitle);
-run("Duplicate...", "title=PV_Visual_Tuning_Work");
-workTitle = getTitle();
+    // Work only on a duplicate. The source remains the visual benchmark.
+    selectWindow(sourceTitle);
+    setMinAndMax(displayMin, displayMax);
+    run("Green");
+    run("Duplicate...", "title=PV_Tuned_Trial");
+    workTitle = getTitle();
 
-if (applyDespeckle)
-    run("Despeckle");
+    if (applyDespeckle)
+        run("Despeckle");
 
-if (gaussianSigma > 0)
-    run("Gaussian Blur...", "sigma=" + gaussianSigma);
+    if (gaussianSigma > 0)
+        run("Gaussian Blur...", "sigma=" + gaussianSigma);
+
+    setMinAndMax(displayMin, displayMax);
+    run("Green");
+    run("Tile");
+
+    reviewChoices = newArray(
+        "Retune settings",
+        "Accept and save this preview",
+        "Cancel without saving"
+    );
+    Dialog.create("Step 5 — Review raw versus tuned PV");
+    Dialog.addMessage(
+        "The raw PV source and tuned trial are open side by side.\n\n" +
+        "Look specifically for remaining isolated specks, retained fine PV processes,\n" +
+        "and whether cell borders still look natural."
+    );
+    Dialog.addChoice("Next action:", reviewChoices, "Retune settings");
+    Dialog.show();
+    reviewDecision = Dialog.getChoice();
+
+    if (reviewDecision == "Retune settings") {
+        selectWindow(workTitle);
+        close();
+    }
+
+    if (reviewDecision == "Cancel without saving") {
+        selectWindow(workTitle);
+        close();
+        selectWindow(sourceTitle);
+        close();
+        exit("Step 5 cancelled. Nothing was saved.");
+    }
+
+    if (reviewDecision == "Accept and save this preview")
+        reviewComplete = 1;
+}
 
 inputDirectory = File.getDirectory(inputPath);
 outputDirectory = inputDirectory + "PV_visual_tuning" + File.separator;
@@ -180,17 +222,20 @@ previewTiffPath = outputDirectory + baseName + "_PV_tuned_green_preview.tif";
 previewPngPath = outputDirectory + baseName + "_PV_tuned_green_preview.png";
 settingsPath = outputDirectory + baseName + "_PV_tuning_settings.txt";
 
-// Grayscale output contains the optional median/Gaussian operations. It is
-// clearly labeled as visualization-only and should not replace raw data for
-// measurement or threshold-based quantification.
+// Save the accepted trial as grayscale first. The green preview is made from
+// a separate duplicate, so its display color never changes this TIFF's pixels.
+selectWindow(workTitle);
+run("Grays");
 saveAs("Tiff", processedPath);
 
-// Create a separate, display-baked green preview with user-selected limits.
 setMinAndMax(displayMin, displayMax);
 run("Green");
+run("Duplicate...", "title=PV_Tuned_Green_Preview_Save");
+previewTitle = getTitle();
 run("RGB Color");
 saveAs("Tiff", previewTiffPath);
 saveAs("PNG", previewPngPath);
+close();
 
 settings =
     "STEP 5 — OPTIONAL PV VISUAL TUNING\n" +
