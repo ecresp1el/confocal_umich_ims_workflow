@@ -61,3 +61,11 @@ Macro: `src/Step6_Final_Figure_Crop.ijm`
 Input: the exact `*_FijiAnalysis` folder after an accepted `Step5_alt_wholeimage` final figure set exists. The macro automatically uses the most recent saved dTomato-red, PV-green, and PV+dTomato final-review TIFFs.
 
 Output: a full-resolution, presentation-only `dTomato | PV | Merge` 1 x 3 panel in `02_max_projection_and_figures/06_whole_image_PV_visual_tuning/final_crop_panels/`. You enter an initial physical width and height, then drag and rotate one native Fiji rotated rectangle on the merge; the macro applies and straightens that same geometry for all three panels. If the crop is wider than tall, it rotates all three presentation crops together by 90 degrees so the final layout is always three portrait towers. It saves the cropped TIFFs/PNGs, reusable rotated `.roi`, and exact crop settings. No scale bar is added in this clean-review version. It does not modify any Step 5 input or raw image.
+
+### 7. Final panel finish: black exterior and scale bar
+
+Macro: `src/Step7_Final_Panel_Finish.ijm`
+
+Input: the exact `*_FijiAnalysis` folder after an accepted Step 6 crop exists. The macro automatically detects the newest complete Step 6 crop run.
+
+Output: a separately saved, full-resolution `dTomato | PV | Merge` 1 x 3 panel in `02_max_projection_and_figures/06_whole_image_PV_visual_tuning/final_panel_finish/`. You draw one closed freehand boundary around the organoid on the Merge crop, including any dim neurites that need to remain visible. The same approved boundary is applied to dTomato, PV, and Merge, making every pixel outside it pure black without thresholding or changing fluorescence inside the boundary. Choose a physical scale-bar length, position its placeholder, and Step 7 draws a thick white scale bar on Merge only. It saves TIFF/PNG images, the final panel, a reusable boundary `.roi`, and exact settings. It does not modify raw data or any Step 5/6 image.
