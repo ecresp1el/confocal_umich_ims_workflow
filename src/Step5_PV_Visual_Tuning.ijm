@@ -299,11 +299,157 @@ run("Green");
 selectWindow(workTitle);
 rename("PV tuned preview — visualization only");
 
+// Continue directly into the same ROI's multi-channel paper-figure review.
+// This review writes files only after the user explicitly accepts the set.
+launchFinalChannelReview(inputDirectory, processedPath);
+
 Dialog.create("Step 5 complete");
 Dialog.addMessage(
     "The raw source was not changed.\n\n" +
-    "Outputs:\n" +
-    outputDirectory + "\n\n" +
-    "Use the left/open source and the tuned preview to judge whether fine PV processes remain intact."
+    "Saved PV run:\n" + outputDirectory + "\n\n" +
+    "The matching DAPI, PV, dTomato, pairwise, and full-merge review windows were opened."
 );
 Dialog.show();
+
+
+// ============================================================================
+// FINAL MULTI-CHANNEL REVIEW (SAVED ONLY AFTER EXPLICIT ACCEPTANCE)
+// ============================================================================
+function launchFinalChannelReview(roiFolder, acceptedPVPath) {
+    roiFiles = getFileList(roiFolder);
+    dapiPath = "";
+    dtomPath = "";
+
+    for (i = 0; i < lengthOf(roiFiles); i++) {
+        candidateName = roiFiles[i];
+        candidateLower = toLowerCase(candidateName);
+        if (endsWith(candidateLower, "_dapi_raw.tif"))
+            dapiPath = roiFolder + candidateName;
+        if (endsWith(candidateLower, "_raw.tif") && indexOf(candidateLower, "dtom") >= 0)
+            dtomPath = roiFolder + candidateName;
+    }
+
+    if (dapiPath == "" || dtomPath == "") {
+        Dialog.create("Step 5 — final review unavailable");
+        Dialog.addMessage(
+            "PV saved, but the matching DAPI or dTomato raw ROI TIFF was not found.\n\n" +
+            "Expected in:\n" + roiFolder
+        );
+        Dialog.show();
+        return;
+    }
+
+    // The three source windows remain open while the user sets their display.
+    open(dapiPath);
+    dapiTitle = getTitle();
+    run("Blue");
+    run("Brightness/Contrast...");
+    waitForUser("Step 5 — Tune DAPI", "Adjust DAPI brightness/contrast, then click OK.");
+    getMinAndMax(dapiMin, dapiMax);
+
+    open(acceptedPVPath);
+    finalPVTitle = getTitle();
+    run("Green");
+    run("Brightness/Contrast...");
+    waitForUser("Step 5 — Tune PV", "Adjust the accepted PV brightness/contrast, then click OK.");
+    getMinAndMax(finalPVMin, finalPVMax);
+
+    open(dtomPath);
+    dtomTitle = getTitle();
+    run("Red");
+    run("Brightness/Contrast...");
+    waitForUser("Step 5 — Tune dTomato", "Adjust dTomato brightness/contrast, then click OK.");
+    getMinAndMax(dtomMin, dtomMax);
+
+    dapiPVTitle = makeFinalPair(dapiTitle, finalPVTitle, "DAPI + PV review", "Blue", "Green", dapiMin, dapiMax, finalPVMin, finalPVMax);
+    dapiDtomTitle = makeFinalPair(dapiTitle, dtomTitle, "DAPI + dTomato review", "Blue", "Red", dapiMin, dapiMax, dtomMin, dtomMax);
+    pvDtomTitle = makeFinalPair(finalPVTitle, dtomTitle, "PV + dTomato review", "Green", "Red", finalPVMin, finalPVMax, dtomMin, dtomMax);
+    fullMergeTitle = makeFinalMerge(dapiTitle, finalPVTitle, dtomTitle, dapiMin, dapiMax, finalPVMin, finalPVMax, dtomMin, dtomMax);
+
+    run("Tile");
+    finalChoices = newArray("Accept and save final figure set", "Leave this review unsaved");
+    Dialog.create("Step 5 — final figure review");
+    Dialog.addMessage(
+        "Review the three individual channels, three pairwise merges, and full merge.\n\n" +
+        "Accepting saves this exact display state and a linked settings record."
+    );
+    Dialog.addChoice("Final decision:", finalChoices, "Leave this review unsaved");
+    Dialog.show();
+    finalDecision = Dialog.getChoice();
+
+    if (finalDecision == "Accept and save final figure set")
+        saveFinalFigureSet(roiFolder, acceptedPVPath, dapiTitle, finalPVTitle, dtomTitle, dapiPVTitle, dapiDtomTitle, pvDtomTitle, fullMergeTitle, dapiMin, dapiMax, finalPVMin, finalPVMax, dtomMin, dtomMax);
+}
+
+function makeFinalPair(titleA, titleB, pairName, colorA, colorB, minA, maxA, minB, maxB) {
+    selectWindow(titleA);
+    run("Duplicate...", "title=PAIR_A_TMP");
+    pairA = getTitle();
+    applyFinalLUT(colorA);
+    setMinAndMax(minA, maxA);
+    selectWindow(titleB);
+    run("Duplicate...", "title=PAIR_B_TMP");
+    pairB = getTitle();
+    applyFinalLUT(colorB);
+    setMinAndMax(minB, maxB);
+    run("Merge Channels...", "c1=[" + pairA + "] c2=[" + pairB + "] create");
+    Stack.setDisplayMode("composite");
+    Stack.setActiveChannels("11");
+    run("RGB Color");
+    rename(pairName);
+    return getTitle();
+}
+
+function makeFinalMerge(dapiTitle, pvTitle, dtomTitle, dapiMin, dapiMax, pvMin, pvMax, dtomMin, dtomMax) {
+    run("Merge Channels...", "c1=[" + dapiTitle + "] c2=[" + pvTitle + "] c3=[" + dtomTitle + "] create");
+    Stack.setChannel(1); applyFinalLUT("Blue"); setMinAndMax(dapiMin, dapiMax);
+    Stack.setChannel(2); applyFinalLUT("Green"); setMinAndMax(pvMin, pvMax);
+    Stack.setChannel(3); applyFinalLUT("Red"); setMinAndMax(dtomMin, dtomMax);
+    Stack.setDisplayMode("composite");
+    Stack.setActiveChannels("111");
+    run("RGB Color");
+    rename("DAPI + PV + dTomato full merge review");
+    return getTitle();
+}
+
+function applyFinalLUT(colorName) {
+    if (colorName == "Blue") run("Blue");
+    if (colorName == "Green") run("Green");
+    if (colorName == "Red") run("Red");
+}
+
+function saveFinalFigureSet(roiFolder, acceptedPVPath, dapiTitle, pvTitle, dtomTitle, dapiPVTitle, dapiDtomTitle, pvDtomTitle, fullMergeTitle, dapiMin, dapiMax, pvMin, pvMax, dtomMin, dtomMax) {
+    finalFolder = roiFolder + "final_figure_review" + File.separator;
+    File.makeDirectory(finalFolder);
+    finalRun = 1;
+    while (File.exists(finalFolder + "final_figure_run_" + finalRun + "_settings.txt"))
+        finalRun++;
+    finalStem = finalFolder + "final_figure_run_" + finalRun;
+
+    saveFinalRGB(dapiTitle, finalStem + "_DAPI_blue");
+    saveFinalRGB(pvTitle, finalStem + "_PV_green");
+    saveFinalRGB(dtomTitle, finalStem + "_dTomato_red");
+    saveFinalRGB(dapiPVTitle, finalStem + "_DAPI_PLUS_PV");
+    saveFinalRGB(dapiDtomTitle, finalStem + "_DAPI_PLUS_dTomato");
+    saveFinalRGB(pvDtomTitle, finalStem + "_PV_PLUS_dTomato");
+    saveFinalRGB(fullMergeTitle, finalStem + "_DAPI_PV_dTomato_merge");
+
+    finalSettings =
+        "STEP 5 — ACCEPTED FINAL FIGURE SET\n" +
+        "====================================\n\n" +
+        "Accepted PV input: " + acceptedPVPath + "\n\n" +
+        "DAPI display min/max: " + d2s(dapiMin, 3) + " / " + d2s(dapiMax, 3) + "\n" +
+        "PV display min/max: " + d2s(pvMin, 3) + " / " + d2s(pvMax, 3) + "\n" +
+        "dTomato display min/max: " + d2s(dtomMin, 3) + " / " + d2s(dtomMax, 3) + "\n\n" +
+        "This figure set is visualization-only. Raw ROI TIFFs were not modified.\n";
+    File.saveString(finalSettings, finalStem + "_settings.txt");
+}
+
+function saveFinalRGB(windowTitle, outputStem) {
+    selectWindow(windowTitle);
+    run("Duplicate...", "title=FINAL_SAVE_TMP");
+    run("RGB Color");
+    saveAs("Tiff", outputStem + ".tif");
+    saveAs("PNG", outputStem + ".png");
+    close();
+}
