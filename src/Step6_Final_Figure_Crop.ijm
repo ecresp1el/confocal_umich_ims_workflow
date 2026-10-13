@@ -5,10 +5,11 @@
 // whole-image final review set:
 //     dTomato (red) | PV (green) | PV + dTomato merge
 //
-// The user draws ONE rectangular ROI on the saved red+green merge. The same
-// unscaled rectangle is applied to all three aligned images. A calibrated,
-// fixed-length scale bar is added to the merge tile only after the user drags
-// its placement rectangle. Inputs are never modified.
+// The user sets an initial crop width/height, then drags and rotates ONE native
+// Fiji rotated rectangle on the saved merge. The same geometry is straightened
+// and applied to all three aligned images. A calibrated, fixed-length scale bar
+// is added to the merge tile only after the user drags its placement rectangle.
+// Inputs are never modified.
 // ============================================================================
 
 requires("1.53");
@@ -17,8 +18,9 @@ Dialog.create("Step 6 — final whole-image figure crop");
 Dialog.addMessage(
     "Step 6 makes the final 1 x 3 paper figure:\n\n" +
     "dTomato (red)  |  PV (green)  |  PV + dTomato merge\n\n" +
-    "You will draw one rectangular crop on the merge. The identical crop is\n" +
-    "then used for every panel. A fixed-length scale bar is placed on the\n" +
+    "You will choose an initial crop width/height, then drag and rotate one\n" +
+    "Fiji rotated rectangle on the merge. Its identical geometry is then used\n" +
+    "for every panel. A fixed-length scale bar is placed on the\n" +
     "merge panel only.\n\n" +
     "This uses the already approved Step 5 display images and never changes\n" +
     "raw data or final-review source TIFFs."
@@ -100,72 +102,104 @@ if (!Dialog.getCheckbox())
     exit("Cancelled before processing. Nothing was changed.");
 
 // ----------------------------------------------------------------------------
-// 2. DRAW AND CONFIRM ONE RECTANGULAR CROP ON THE SAVED MERGE
+// 2. SIZE, DRAG, AND ROTATE ONE RECTANGULAR CROP ON THE SAVED MERGE
 // ----------------------------------------------------------------------------
 open(mergePath);
 mergeSourceTitle = getTitle();
 getDimensions(sourceW, sourceH, sourceC, sourceZ, sourceT);
 
-cropAccepted = 0;
-while (cropAccepted == 0) {
-    selectWindow(mergeSourceTitle);
-    setTool("rectangle");
-    waitForUser(
-        "Step 6 — draw the final crop",
-        "Draw and adjust ONE rectangular ROI on the PV + dTomato merge.\n\n" +
-        "This exact rectangle will be used without resizing for dTomato, PV, and Merge.\n" +
-        "Click OK when the crop looks publication-ready."
-    );
-
-    if (selectionType == -1) {
-        Dialog.create("No crop detected");
-        Dialog.addMessage("No active rectangle was detected. Please draw a rectangular ROI.");
-        Dialog.show();
-    } else if (selectionType != 0) {
-        Dialog.create("Rectangle required");
-        Dialog.addMessage("Use Fiji's Rectangle tool. Step 6 requires one rectangular crop for reproducibility.");
-        Dialog.show();
-    } else {
-        getSelectionBounds(cropX, cropY, cropW, cropH);
-        if (cropW < 2 || cropH < 2) {
-            Dialog.create("Crop too small");
-            Dialog.addMessage("Draw a larger rectangle.");
-            Dialog.show();
-        } else {
-            cropChoices = newArray("Use this crop", "Redraw crop", "Cancel without saving");
-            Dialog.create("Step 6 — review final crop");
-            Dialog.addMessage(
-                "Crop position and size (pixels)\n\n" +
-                "X: " + cropX + "\n" +
-                "Y: " + cropY + "\n" +
-                "Width: " + cropW + "\n" +
-                "Height: " + cropH + "\n\n" +
-                "This same rectangle will be copied to all three aligned final images."
-            );
-            Dialog.addChoice("Next action:", cropChoices, "Use this crop");
-            Dialog.show();
-            cropDecision = Dialog.getChoice();
-            if (cropDecision == "Use this crop")
-                cropAccepted = 1;
-            if (cropDecision == "Cancel without saving") {
-                selectWindow(mergeSourceTitle);
-                close();
-                exit("Step 6 cancelled. Nothing was saved.");
-            }
-        }
-    }
-}
-
-// Read calibration from the accepted display image. The scale bar is derived
-// from this physical calibration, never guessed in pixels.
-selectWindow(mergeSourceTitle);
 getPixelSize(scaleUnit, pixelWidth, pixelHeight);
 scaleUnitLower = toLowerCase(scaleUnit);
-if (pixelWidth <= 0 || scaleUnitLower == "pixel" || scaleUnitLower == "pixels")
+if (pixelWidth <= 0 || pixelHeight <= 0 || scaleUnitLower == "pixel" || scaleUnitLower == "pixels")
     exit(
         "This saved final-review TIFF does not contain usable physical calibration.\n\n" +
         "No image was saved. Recreate the Step 5 final review from calibrated Step 3 images."
     );
+
+defaultCropWidth = minOf(200, floor(sourceW * pixelWidth * 0.8));
+defaultCropHeight = minOf(200, floor(sourceH * pixelHeight * 0.8));
+if (defaultCropWidth < 1) defaultCropWidth = 1;
+if (defaultCropHeight < 1) defaultCropHeight = 1;
+
+Dialog.create("Step 6 — choose initial crop size");
+Dialog.addMessage(
+    "Set the initial physical crop size. You will then drag and rotate it directly\n" +
+    "on the merge—no X/Y coordinates are needed.\n\n" +
+    "Image size: " + sourceW + " × " + sourceH + " pixels\n" +
+    "Calibration: " + d2s(pixelWidth, 5) + " " + scaleUnit + " per pixel\n\n" +
+    "The final crop remains a true rotated rectangle and is straightened consistently\n" +
+    "for dTomato, PV, and Merge."
+);
+Dialog.addNumber("Initial crop width", defaultCropWidth, 0, 8, scaleUnit);
+Dialog.addNumber("Initial crop height", defaultCropHeight, 0, 8, scaleUnit);
+Dialog.show();
+requestedCropWidth = Dialog.getNumber();
+requestedCropHeight = Dialog.getNumber();
+roiLengthPixels = round(requestedCropWidth / pixelWidth);
+roiWidthPixels = round(requestedCropHeight / pixelHeight);
+if (roiLengthPixels < 2 || roiWidthPixels < 2 || roiLengthPixels > sourceW - 2 || roiWidthPixels > sourceH - 2)
+    exit("The requested initial crop size does not fit in this image. Nothing was saved.");
+
+defaultX1 = round((sourceW - roiLengthPixels) / 2);
+defaultY1 = round(sourceH / 2);
+defaultX2 = defaultX1 + roiLengthPixels;
+defaultY2 = defaultY1;
+selectWindow(mergeSourceTitle);
+makeRotatedRectangle(defaultX1, defaultY1, defaultX2, defaultY2, roiWidthPixels);
+setTool("rotrect");
+waitForUser(
+    "Step 6 — position and rotate the final crop",
+    "Drag the rotated rectangle to place it. Drag its handles to resize or rotate it.\n\n" +
+    "This one ROI will be applied identically to dTomato, PV, and Merge.\n" +
+    "Click OK only when the crop looks right."
+);
+
+if (selectionType == -1)
+    exit("No rotated crop was detected. Nothing was saved.");
+
+// A RotatedRectRoi supplies four corners in this order:
+// start+perpendicular, end+perpendicular, end-perpendicular, start-perpendicular.
+// Reconstructing its centreline and width lets us apply the exact same rotated
+// geometry to each aligned source image.
+getSelectionCoordinates(roiXPoints, roiYPoints);
+if (lengthOf(roiXPoints) != 4) {
+    selectWindow(mergeSourceTitle);
+    close();
+    exit("Use Fiji's Rotated Rectangle tool for the final crop. Nothing was saved.");
+}
+for (p = 0; p < 4; p++) {
+    if (roiXPoints[p] < 0 || roiYPoints[p] < 0 || roiXPoints[p] >= sourceW || roiYPoints[p] >= sourceH) {
+        selectWindow(mergeSourceTitle);
+        close();
+        exit("Keep the full rotated rectangle inside the image bounds. Nothing was saved.");
+    }
+}
+roiX1 = (roiXPoints[0] + roiXPoints[3]) / 2;
+roiY1 = (roiYPoints[0] + roiYPoints[3]) / 2;
+roiX2 = (roiXPoints[1] + roiXPoints[2]) / 2;
+roiY2 = (roiYPoints[1] + roiYPoints[2]) / 2;
+roiFinalWidthPixels = sqrt(pow(roiXPoints[0] - roiXPoints[3], 2) + pow(roiYPoints[0] - roiYPoints[3], 2));
+roiFinalLengthPixels = sqrt(pow(roiX2 - roiX1, 2) + pow(roiY2 - roiY1, 2));
+if (roiFinalLengthPixels < 2 || roiFinalWidthPixels < 2) {
+    selectWindow(mergeSourceTitle);
+    close();
+    exit("The rotated crop is too small. Nothing was saved.");
+}
+
+Dialog.create("Step 6 — confirm rotated crop");
+Dialog.addMessage(
+    "Final rotated crop\n\n" +
+    "Length: " + d2s(roiFinalLengthPixels * pixelWidth, 2) + " " + scaleUnit + "\n" +
+    "Width: " + d2s(roiFinalWidthPixels * pixelHeight, 2) + " " + scaleUnit + "\n\n" +
+    "This exact angle, position, and size will be straightened identically for all three panels."
+);
+Dialog.addCheckbox("Yes — use this rotated crop.", false);
+Dialog.show();
+if (!Dialog.getCheckbox()) {
+    selectWindow(mergeSourceTitle);
+    close();
+    exit("Step 6 cancelled. Nothing was saved.");
+}
 
 // ----------------------------------------------------------------------------
 // 3. MAKE THREE IDENTICAL CROPS FROM THE ACCEPTED DISPLAY IMAGES
@@ -175,9 +209,11 @@ dtomSourceTitle = getTitle();
 open(pvPath);
 pvSourceTitle = getTitle();
 
-dtomCropTitle = makeCrop(dtomSourceTitle, cropX, cropY, cropW, cropH, "Step6_dTomato_crop");
-pvCropTitle = makeCrop(pvSourceTitle, cropX, cropY, cropW, cropH, "Step6_PV_crop");
-mergeCropTitle = makeCrop(mergeSourceTitle, cropX, cropY, cropW, cropH, "Step6_merge_crop");
+dtomCropTitle = makeRotatedCrop(dtomSourceTitle, roiX1, roiY1, roiX2, roiY2, roiFinalWidthPixels, "Step6_dTomato_crop");
+pvCropTitle = makeRotatedCrop(pvSourceTitle, roiX1, roiY1, roiX2, roiY2, roiFinalWidthPixels, "Step6_PV_crop");
+mergeCropTitle = makeRotatedCrop(mergeSourceTitle, roiX1, roiY1, roiX2, roiY2, roiFinalWidthPixels, "Step6_merge_crop");
+selectWindow(mergeCropTitle);
+getDimensions(cropW, cropH, cropC, cropZ, cropT);
 
 // Close only full-field source windows. Crops remain open for review/output.
 selectWindow(dtomSourceTitle); close();
@@ -338,10 +374,10 @@ saveRGB(mergeCropTitle, outputStem + "_PV_PLUS_dTomato_crop_no_scale_bar");
 saveRGB(scalePreviewTitle, outputStem + "_PV_PLUS_dTomato_crop_with_scale_bar");
 saveRGB(panelTitle, outputStem + "_dTomato_PV_Merge_panel");
 
-// Save the exact full-field rectangular ROI without changing the ROI Manager.
+// Save the exact full-field rotated ROI without changing the ROI Manager.
 open(mergePath);
 roiSaveSource = getTitle();
-makeRectangle(cropX, cropY, cropW, cropH);
+makeRotatedRectangle(roiX1, roiY1, roiX2, roiY2, roiFinalWidthPixels);
 saveAs("Selection", outputStem + "_crop_ROI.roi");
 close();
 
@@ -352,11 +388,11 @@ settings =
     "dTomato input: " + dtomPath + "\n" +
     "PV input: " + pvPath + "\n" +
     "Merge input: " + mergePath + "\n\n" +
-    "Full-field rectangular ROI (pixels)\n" +
-    "X: " + cropX + "\n" +
-    "Y: " + cropY + "\n" +
-    "Width: " + cropW + "\n" +
-    "Height: " + cropH + "\n\n" +
+    "Full-field rotated rectangle (pixels)\n" +
+    "Centreline start: X=" + d2s(roiX1, 3) + ", Y=" + d2s(roiY1, 3) + "\n" +
+    "Centreline end: X=" + d2s(roiX2, 3) + ", Y=" + d2s(roiY2, 3) + "\n" +
+    "Length: " + d2s(roiFinalLengthPixels, 3) + " pixels\n" +
+    "Width: " + d2s(roiFinalWidthPixels, 3) + " pixels\n\n" +
     "Calibration: " + d2s(pixelWidth, 6) + " " + scaleUnit + " per pixel\n" +
     "Scale-bar length: " + d2s(barLength, 0) + " " + scaleUnit + "\n" +
     "Scale-bar length: " + barPixels + " pixels\n" +
@@ -379,9 +415,9 @@ Dialog.show();
 // ============================================================================
 // FUNCTIONS
 // ============================================================================
-function makeCrop(sourceTitle, x, y, w, h, newTitle) {
+function makeRotatedCrop(sourceTitle, x1, y1, x2, y2, rectWidth, newTitle) {
     selectWindow(sourceTitle);
-    makeRectangle(x, y, w, h);
+    makeRotatedRectangle(x1, y1, x2, y2, rectWidth);
     run("Duplicate...", "title=[" + newTitle + "] duplicate");
     return getTitle();
 }
