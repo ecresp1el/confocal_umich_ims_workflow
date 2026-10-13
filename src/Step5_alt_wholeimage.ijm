@@ -358,7 +358,28 @@ function makeFinalPair(titleA, titleB, pairName, colorA, colorB, minA, maxA, min
 }
 
 function makeFinalMerge(dapiTitle, pvTitle, dtomTitle, dapiMin, dapiMax, pvMin, pvMax, dtomMin, dtomMax) {
-    run("Merge Channels...", "c1=[" + dapiTitle + "] c2=[" + pvTitle + "] c3=[" + dtomTitle + "] create");
+    // Merge Channels can close or replace the images it receives. Build the
+    // three-channel composite from temporary duplicates, leaving the adjusted
+    // DAPI, PV, and dTomato source windows open for saveFinalFigureSet().
+    selectWindow(dapiTitle);
+    run("Duplicate...", "title=FULL_MERGE_DAPI_TMP");
+    mergeDapiTitle = getTitle();
+    applyFinalLUT("Blue");
+    setMinAndMax(dapiMin, dapiMax);
+
+    selectWindow(pvTitle);
+    run("Duplicate...", "title=FULL_MERGE_PV_TMP");
+    mergePVTitle = getTitle();
+    applyFinalLUT("Green");
+    setMinAndMax(pvMin, pvMax);
+
+    selectWindow(dtomTitle);
+    run("Duplicate...", "title=FULL_MERGE_DTOM_TMP");
+    mergeDtomTitle = getTitle();
+    applyFinalLUT("Red");
+    setMinAndMax(dtomMin, dtomMax);
+
+    run("Merge Channels...", "c1=[" + mergeDapiTitle + "] c2=[" + mergePVTitle + "] c3=[" + mergeDtomTitle + "] create");
     Stack.setChannel(1); applyFinalLUT("Blue"); setMinAndMax(dapiMin, dapiMax);
     Stack.setChannel(2); applyFinalLUT("Green"); setMinAndMax(pvMin, pvMax);
     Stack.setChannel(3); applyFinalLUT("Red"); setMinAndMax(dtomMin, dtomMax);
