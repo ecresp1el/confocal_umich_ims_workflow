@@ -43,3 +43,5 @@ Macro: `src/Step5_PV_Visual_Tuning.ijm`
 Input: the exact `*_FijiAnalysis` folder for one selected sample. The macro inspects that folder's existing Step 4 outputs, detects its `*_PV_raw.tif` ROI images, reports how many it found, and asks the user to choose one.
 
 Output: after an explicit source-versus-preview review and acceptance, a separately saved, visualization-only PV grayscale refinement and green display preview in a `PV_visual_tuning/` subfolder next to the chosen input. The source TIFF, ROI set, prepared Z-stack, and prior Step 3/4 outputs are not changed. The macro offers optional bright-hot-pixel suppression, adjustable median despeckling, light adjustable Gaussian smoothing, and manual display limits; use raw PV images for measurements.
+
+For final review, Step 5 reads the Step 1 channel map and requires the exact dTomato-marked raw ROI TIFF (for example, `BiVe3dtom` or `BiVe4dtom`). It shows the identified DAPI, tuned PV, and dTomato inputs for confirmation before creating any review merges.

@@ -319,13 +319,26 @@ function launchFinalChannelReview(roiFolder, acceptedPVPath) {
     roiFiles = getFileList(roiFolder);
     dapiPath = "";
     dtomPath = "";
+    dtomMarker = findDtomMarker(analysisFolder);
+
+    if (dtomMarker == "") {
+        Dialog.create("Step 5 — dTomato channel not identified");
+        Dialog.addMessage(
+            "The Step 1 channel map did not contain a marker with 'dtom'.\n\n" +
+            "No final multi-channel review was created. PV remains saved."
+        );
+        Dialog.show();
+        return;
+    }
+
+    dtomRawSuffix = "_" + toLowerCase(dtomMarker) + "_raw.tif";
 
     for (i = 0; i < lengthOf(roiFiles); i++) {
         candidateName = roiFiles[i];
         candidateLower = toLowerCase(candidateName);
         if (endsWith(candidateLower, "_dapi_raw.tif"))
             dapiPath = roiFolder + candidateName;
-        if (endsWith(candidateLower, "_raw.tif") && indexOf(candidateLower, "dtom") >= 0)
+        if (endsWith(candidateLower, dtomRawSuffix))
             dtomPath = roiFolder + candidateName;
     }
 
@@ -333,11 +346,26 @@ function launchFinalChannelReview(roiFolder, acceptedPVPath) {
         Dialog.create("Step 5 — final review unavailable");
         Dialog.addMessage(
             "PV saved, but the matching DAPI or dTomato raw ROI TIFF was not found.\n\n" +
+            "Expected dTomato marker: " + dtomMarker + "\n\n" +
             "Expected in:\n" + roiFolder
         );
         Dialog.show();
         return;
     }
+
+    Dialog.create("Step 5 — confirm final-review channels");
+    Dialog.addMessage(
+        "The Step 1 channel map identified these final-review inputs:\n\n" +
+        "DAPI raw: " + File.getName(dapiPath) + "\n" +
+        "PV tuned: " + File.getName(acceptedPVPath) + "\n" +
+        "dTomato marker: " + dtomMarker + "\n" +
+        "dTomato raw: " + File.getName(dtomPath) + "\n\n" +
+        "The selected dTomato file must match the Step 1 marker exactly."
+    );
+    Dialog.addCheckbox("Yes — use these identified channels.", false);
+    Dialog.show();
+    if (!Dialog.getCheckbox())
+        return;
 
     // The three source windows remain open while the user sets their display.
     open(dapiPath);
@@ -416,6 +444,32 @@ function applyFinalLUT(colorName) {
     if (colorName == "Blue") run("Blue");
     if (colorName == "Green") run("Green");
     if (colorName == "Red") run("Red");
+}
+
+function findDtomMarker(selectedAnalysisFolder) {
+    channelFolder = selectedAnalysisFolder + "00_import_and_channels" + File.separator;
+    if (!File.exists(channelFolder))
+        return "";
+    channelFiles = getFileList(channelFolder);
+    mapPath = "";
+    for (m = 0; m < lengthOf(channelFiles); m++) {
+        mapFile = toLowerCase(channelFiles[m]);
+        if (endsWith(mapFile, "_channel_map.csv"))
+            mapPath = channelFolder + channelFiles[m];
+    }
+    if (mapPath == "")
+        return "";
+    mapLines = split(File.openAsString(mapPath), "\n");
+    for (m = 1; m < lengthOf(mapLines); m++) {
+        commaIndex = indexOf(mapLines[m], ",");
+        if (commaIndex >= 0) {
+            markerName = replace(substring(mapLines[m], commaIndex + 1), "\"", "");
+            markerName = replace(markerName, "\r", "");
+            if (indexOf(toLowerCase(markerName), "dtom") >= 0)
+                return markerName;
+        }
+    }
+    return "";
 }
 
 function saveFinalFigureSet(roiFolder, acceptedPVPath, dapiTitle, pvTitle, dtomTitle, dapiPVTitle, dapiDtomTitle, pvDtomTitle, fullMergeTitle, dapiMin, dapiMax, pvMin, pvMax, dtomMin, dtomMax) {
