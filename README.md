@@ -45,3 +45,11 @@ Input: the exact `*_FijiAnalysis` folder for one selected sample. The macro insp
 Output: after an explicit source-versus-preview review and acceptance, a separately saved, visualization-only PV grayscale refinement and green display preview in a `PV_visual_tuning/` subfolder next to the chosen input. The source TIFF, ROI set, prepared Z-stack, and prior Step 3/4 outputs are not changed. The macro offers optional bright-hot-pixel suppression, adjustable median despeckling, light adjustable Gaussian smoothing, and manual display limits; use raw PV images for measurements.
 
 For final review, Step 5 reads the Step 1 channel map and requires the exact dTomato-marked raw ROI TIFF (for example, `BiVe3dtom` or `BiVe4dtom`). It shows the identified DAPI, tuned PV, and dTomato inputs for confirmation before creating any review merges.
+
+### 5 alt. Optional whole-image PV visual tuning
+
+Macro: `src/Step5_alt_wholeimage.ijm`
+
+Input: the exact `*_FijiAnalysis` folder for one selected sample. This is the full-image companion to Step 5: it automatically uses the grayscale Step 3 raw full-field MAX TIFFs in `02_max_projection_and_figures/01_individual_channels/raw_max_tiffs/`, and never uses ROI outputs.
+
+Output: accepted, visualization-only PV tuning runs and final review figures are saved in `02_max_projection_and_figures/06_whole_image_PV_visual_tuning/`. The macro uses the same tunable hot-pixel suppression, median despeckling, smoothing, preview/accept flow, display adjustment, DAPI-blue/PV-green/dTomato-red pairwise and full merge review, and exact Step 1 dTomato-marker confirmation as the ROI-based Step 5. It never changes raw MAX TIFFs, Step 3 figures, ROI outputs, prepared Z-stacks, or source files.
