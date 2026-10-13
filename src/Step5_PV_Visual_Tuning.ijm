@@ -176,9 +176,6 @@ while (reviewComplete == 0) {
     if (applyMedian && medianRadius < 1)
         exit("Median filter radius must be at least 1 pixel. Nothing was saved.");
 
-    if (hotPixelThreshold <= 0)
-        exit("Hot-pixel threshold must be greater than zero. Nothing was saved.");
-
     if (displayMax <= displayMin)
         exit("Display maximum must be greater than display minimum. Nothing was saved.");
 
@@ -245,10 +242,17 @@ outputDirectory = inputDirectory + "PV_visual_tuning" + File.separator;
 File.makeDirectory(outputDirectory);
 
 baseName = replace(inputName, ".tif", "");
-processedPath = outputDirectory + baseName + "_PV_tuned_grayscale.tif";
-previewTiffPath = outputDirectory + baseName + "_PV_tuned_green_preview.tif";
-previewPngPath = outputDirectory + baseName + "_PV_tuned_green_preview.png";
-settingsPath = outputDirectory + baseName + "_PV_tuning_settings.txt";
+runNumber = 1;
+runLabel = "_PV_tuning_run_" + runNumber;
+while (File.exists(outputDirectory + baseName + runLabel + "_settings.txt")) {
+    runNumber++;
+    runLabel = "_PV_tuning_run_" + runNumber;
+}
+
+processedPath = outputDirectory + baseName + runLabel + "_grayscale.tif";
+previewTiffPath = outputDirectory + baseName + runLabel + "_green_preview.tif";
+previewPngPath = outputDirectory + baseName + runLabel + "_green_preview.png";
+settingsPath = outputDirectory + baseName + runLabel + "_settings.txt";
 
 // Save the accepted trial as grayscale first. The green preview is made from
 // a separate duplicate, so its display color never changes this TIFF's pixels.
@@ -269,6 +273,7 @@ settings =
     "STEP 5 — OPTIONAL PV VISUAL TUNING\n" +
     "====================================\n\n" +
     "INPUT (unchanged): " + inputPath + "\n" +
+    "RUN: " + runNumber + "\n" +
     "OUTPUT GRAYSCALE (visualization-only): " + processedPath + "\n" +
     "OUTPUT GREEN PREVIEW (display-baked): " + previewTiffPath + "\n\n" +
     "Bright hot-pixel suppression: " + suppressHotPixels + "\n" +
